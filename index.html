@@ -1,0 +1,1279 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tiệm Trà Đá Vỉa Hè 3D - Online Multiplayer</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=VT323&family=Nunito:wght@600;800;900&display=swap" rel="stylesheet">
+    <!-- Three.js & OrbitControls -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    
+    <style>
+        * { user-select: none; -webkit-user-select: none; }
+        body { font-family: 'Nunito', sans-serif; background-color: #0f172a; color: #fff; overflow: hidden; }
+        .pixel-font { font-family: 'VT323', monospace; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.2); }
+        ::-webkit-scrollbar-thumb { background: #f59e0b; border-radius: 4px; }
+        @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-6px); } }
+        .animate-float { animation: float 2.5s ease-in-out infinite; }
+        @keyframes pulse-gold { 0%, 100% { box-shadow: 0 0 12px rgba(245, 158, 11, 0.5); } 50% { box-shadow: 0 0 25px rgba(245, 158, 11, 0.9); } }
+        .gold-glow { animation: pulse-gold 2s infinite; }
+        /* Style cho Virtual Joystick trên di động */
+        #joystick-zone {
+            touch-action: none;
+        }
+    </style>
+</head>
+<body class="flex flex-col h-screen w-screen justify-between items-center bg-slate-950 p-2 md:p-4">
+
+    <!-- Modal: Bắt đầu / Vào Phòng -->
+    <div id="join-modal" class="fixed inset-0 bg-slate-950/95 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-800 border-2 border-amber-500 rounded-2xl w-full max-w-md p-6 shadow-2xl text-center relative animate-float">
+            <div class="text-6xl mb-2">🍵</div>
+            <h1 class="text-3xl font-black text-amber-400 mb-1">TRÀ ĐÁ VỈA HÈ 3D ONLINE</h1>
+            <p id="room-welcome-subtitle" class="text-xs text-slate-300 mb-5">Vào tiệm chém gió cùng bạn bè theo thời gian thực!</p>
+            
+            <div class="space-y-4 text-left mb-6">
+                <div>
+                    <label class="block text-xs font-bold text-amber-300 uppercase mb-1">Tên Của Bạn</label>
+                    <input type="text" id="input-player-name" placeholder="Ví dụ: Anh Ba, Tuấn 'Xoăn'..." class="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-white font-bold text-sm focus:outline-none focus:border-amber-400">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-amber-300 uppercase mb-1">Tên Tiệm Trà Đá (Chỉ cho Chủ Quán)</label>
+                    <input type="text" id="input-shop-name" value="Trà Đá Phố Cổ 3D" class="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-white font-bold text-sm focus:outline-none focus:border-amber-400">
+                </div>
+
+                <div class="flex gap-3 pt-1">
+                    <div class="flex-1">
+                        <label class="block text-[11px] font-bold text-slate-400 mb-1">Màu Áo</label>
+                        <input type="color" id="input-shirt-color" value="#2563eb" class="w-full h-10 bg-slate-900 border border-slate-600 rounded-xl cursor-pointer">
+                    </div>
+                    <div class="flex-1">
+                        <label class="block text-[11px] font-bold text-slate-400 mb-1">Màu Tóc</label>
+                        <input type="color" id="input-hair-color" value="#1e293b" class="w-full h-10 bg-slate-900 border border-slate-600 rounded-xl cursor-pointer">
+                    </div>
+                </div>
+            </div>
+
+            <button onclick="joinGameRoom()" class="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black py-3.5 rounded-xl shadow-lg border border-amber-300 text-base active:scale-95 transition-all gold-glow">
+                🚀 VÀO TIỆM NGAY
+            </button>
+        </div>
+    </div>
+
+    <!-- Header Stats & Link Bar -->
+    <header class="w-full max-w-5xl bg-slate-800/90 border-2 border-amber-500/50 rounded-2xl p-3 md:p-4 flex flex-wrap justify-between items-center shadow-2xl backdrop-blur-md z-10 gap-2">
+        <div class="flex items-center space-x-3">
+            <div class="bg-amber-500 text-slate-900 font-extrabold px-3 py-1.5 rounded-xl flex items-center gap-2 shadow-md">
+                <i class="fa-solid text-xl fa-store"></i>
+                <div>
+                    <span id="shop-name-display" class="text-sm md:text-base font-black leading-none block">Trà Đá Phố Cổ 3D</span>
+                    <span id="role-display" class="text-[10px] text-slate-800 font-bold block leading-none mt-0.5">Chưa vào phòng</span>
+                </div>
+            </div>
+            <div class="bg-slate-700/80 px-3 py-1.5 rounded-xl border border-slate-600 flex items-center gap-2">
+                <i class="fa-solid fa-users text-amber-400"></i>
+                <span class="text-xs md:text-sm text-slate-300">Khách trong tiệm:</span>
+                <span id="online-count-display" class="font-bold text-amber-400">1</span>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <!-- TikTok Live Connect & Test Panel -->
+            <button onclick="toggleTikTokPanel()" class="bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white font-extrabold px-3.5 py-2 rounded-xl border border-pink-300 flex items-center gap-2 shadow-md active:scale-95 transition-all text-xs md:text-sm">
+                <i class="fa-brands fa-tiktok text-base"></i> 
+                <span>Tích Hợp TikTok Live</span>
+            </button>
+
+            <!-- Invite Link Button -->
+            <button onclick="copyInviteLink()" class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold px-3.5 py-2 rounded-xl border border-emerald-300 flex items-center gap-2 shadow-md active:scale-95 transition-all text-xs md:text-sm">
+                <i class="fa-solid fa-link"></i> 
+                <span>Sao Chép Link TikTok Live</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Modal: TikTok Live Integration Panel -->
+    <div id="tiktok-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-slate-800 border-2 border-pink-500 rounded-2xl w-full max-w-lg p-6 shadow-2xl relative">
+            <button onclick="toggleTikTokPanel()" class="absolute top-4 right-4 text-slate-400 hover:text-white text-xl">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            
+            <div class="flex items-center gap-3 mb-2">
+                <div class="w-10 h-10 rounded-xl bg-pink-500/20 border border-pink-500 flex items-center justify-center text-pink-400 text-2xl">
+                    <i class="fa-brands fa-tiktok"></i>
+                </div>
+                <div>
+                    <h2 class="text-xl font-black text-pink-400">Tích Hợp Quà TikTok Live (Donate)</h2>
+                    <p class="text-xs text-slate-300">Tự động gọi nước khi Viewer tặng quà trên Livestream</p>
+                </div>
+            </div>
+
+            <div class="bg-slate-900 border border-slate-700 rounded-xl p-3 mb-4 text-xs space-y-2 text-slate-300">
+                <p class="font-bold text-amber-400"><i class="fa-solid fa-gift"></i> Quy đổi Quà TikTok sang Đồ Uống:</p>
+                <div class="grid grid-cols-2 gap-2 text-[11px]">
+                    <div class="bg-slate-800 p-2 rounded-lg border border-slate-700">🎁 <b>Đậu / Hoa (1 Xu):</b> Order Trà Đá Chát</div>
+                    <div class="bg-slate-800 p-2 rounded-lg border border-slate-700">🌻 <b>Tim / Bánh (5 Xu):</b> Order Hạt Hướng Dương</div>
+                    <div class="bg-slate-800 p-2 rounded-lg border border-slate-700">🍹 <b>Kính Cool (20 Xu):</b> Order Trà Chanh</div>
+                    <div class="bg-slate-800 p-2 rounded-lg border border-slate-700">🥤 <b>Súng Tim / Xe (100 Xu):</b> Order Trà Tắc Khổng Lồ</div>
+                </div>
+            </div>
+
+            <div class="space-y-3 mb-5">
+                <div>
+                    <label class="block text-xs font-bold text-pink-300 mb-1">Tên Tài Khoản TikTok Live (@username)</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="tiktok-username-input" placeholder="Ví dụ: @user_tiemtrada" class="flex-1 bg-slate-900 border border-slate-600 rounded-xl px-3 py-2 text-white font-bold text-xs focus:outline-none focus:border-pink-500">
+                        <button onclick="connectTikTokLive()" class="bg-pink-600 hover:bg-pink-500 text-white font-bold px-4 py-2 rounded-xl text-xs active:scale-95 transition-all">
+                            Kết Nối Live
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="border-t border-slate-700 pt-4">
+                <label class="block text-xs font-bold text-amber-400 uppercase mb-2">🧪 Dùng Thử Giả Lập Donate TikTok (Bấm để test):</label>
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="simulateTikTokGift('Viewer_An', 'Rose', 1)" class="bg-slate-700 hover:bg-slate-600 border border-slate-500 text-xs py-2 px-3 rounded-xl text-left flex items-center justify-between">
+                        <span>🌹 Tặng 1 Rose</span>
+                        <span class="text-amber-400 font-bold">🍺 Trà đá</span>
+                    </button>
+                    <button onclick="simulateTikTokGift('Viewer_Bình', 'Doughnut', 10)" class="bg-slate-700 hover:bg-slate-600 border border-slate-500 text-xs py-2 px-3 rounded-xl text-left flex items-center justify-between">
+                        <span>🍩 Tặng 10 Xu</span>
+                        <span class="text-amber-400 font-bold">🌻 Hướng dương</span>
+                    </button>
+                    <button onclick="simulateTikTokGift('Viewer_Cường', 'Sunglasses', 50)" class="bg-slate-700 hover:bg-slate-600 border border-slate-500 text-xs py-2 px-3 rounded-xl text-left flex items-center justify-between">
+                        <span>🕶️ Tặng 50 Xu</span>
+                        <span class="text-amber-400 font-bold">🍹 Trà chanh</span>
+                    </button>
+                    <button onclick="simulateTikTokGift('Viewer_Dũng', 'SportsCar', 500)" class="bg-slate-700 hover:bg-slate-600 border border-slate-500 text-xs py-2 px-3 rounded-xl text-left flex items-center justify-between">
+                        <span>🏎️ Tặng 500 Xu</span>
+                        <span class="text-amber-400 font-bold">🥤 Trà tắc VIP</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Viewport 3D Canvas Container -->
+    <main class="relative w-full max-w-5xl flex-1 my-2 rounded-2xl overflow-hidden border-4 border-slate-700 bg-slate-950 shadow-2xl flex flex-col justify-end">
+        
+        <!-- Three.js Canvas Container -->
+        <div id="canvas-container" class="absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing"></div>
+
+        <!-- Camera Control Hint Overlay -->
+        <div class="absolute top-3 right-3 bg-slate-900/80 border border-slate-700 rounded-xl px-3 py-1.5 text-[11px] text-slate-300 pointer-events-none backdrop-blur-sm z-10 flex items-center gap-2">
+            <i class="fa-solid fa-arrows-spin text-amber-400"></i> Click vào Bàn 3D để ngồi xuống / Xoay chuột 360°
+        </div>
+
+        <!-- Overlay HUD / Chat Box -->
+        <div class="relative z-10 p-3 flex justify-between items-end pointer-events-none w-full gap-3">
+            
+            <!-- Virtual Joystick Touch Controller cho Điện thoại -->
+            <div id="joystick-container" class="pointer-events-auto relative w-28 h-28 sm:w-32 sm:h-32 bg-slate-900/60 border-2 border-amber-500/50 rounded-full flex items-center justify-center backdrop-blur-sm touch-none select-none my-auto">
+                <div id="joystick-knob" class="w-12 h-12 bg-amber-500/80 border-2 border-amber-300 rounded-full shadow-lg transition-transform duration-75"></div>
+            </div>
+
+            <!-- Left Info Panel: Chat Realtime & Nút Chat Nhanh -->
+            <div id="chat-container" class="pointer-events-auto w-full sm:w-80 bg-slate-900/90 border border-slate-700 rounded-xl p-3 shadow-xl backdrop-blur-md transition-all duration-300">
+                <div class="flex items-center justify-between border-b border-slate-700 pb-1 mb-2">
+                    <span class="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1">
+                        <i class="fa-solid fa-comments"></i> Chém Gió Vỉa Hè
+                    </span>
+                    <button onclick="toggleChatBox()" class="text-xs text-slate-400 hover:text-white sm:hidden">
+                        <i class="fa-solid fa-chevron-down"></i>
+                    </button>
+                </div>
+                <div id="chat-log" class="h-28 overflow-y-auto text-xs space-y-1.5 pr-1 text-slate-300 mb-2">
+                    <p class="italic text-slate-500">Mời bạn bè truy cập link phòng để cùng chém gió!</p>
+                </div>
+
+                <!-- Các nút chat nhanh -->
+                <div class="flex flex-wrap gap-1 mb-2">
+                    <button onclick="sendQuickChat('Cho cốc trà đá!')" class="bg-slate-800 hover:bg-amber-600/30 border border-slate-600 text-[10px] text-amber-300 px-2 py-0.5 rounded-full">🍺 Trà đá!</button>
+                    <button onclick="sendQuickChat('Chém gió tí nhể!')" class="bg-slate-800 hover:bg-amber-600/30 border border-slate-600 text-[10px] text-amber-300 px-2 py-0.5 rounded-full">🗣️ Chém gió!</button>
+                    <button onclick="sendQuickChat('Tính tiền chủ ơi!')" class="bg-slate-800 hover:bg-amber-600/30 border border-slate-600 text-[10px] text-amber-300 px-2 py-0.5 rounded-full">💸 Tính tiền!</button>
+                </div>
+
+                <div class="flex gap-1.5">
+                    <input type="text" id="chat-input" placeholder="Gõ câu chém gió..." onkeypress="if(event.key==='Enter') sendChatMessage()" class="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-400">
+                    <button onclick="sendChatMessage()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-3 py-1.5 rounded-lg text-xs">Gửi</button>
+                </div>
+            </div>
+
+            <!-- Right Action Controls (Nút Chat Nhanh + Gọi Đồ) -->
+            <div class="pointer-events-auto flex flex-col gap-2 items-end">
+                <button onclick="toggleChatBox()" class="sm:hidden bg-slate-800 border border-amber-400 text-amber-400 font-bold px-3 py-2 rounded-xl shadow-lg flex items-center gap-1.5 text-xs">
+                    <i class="fa-solid fa-comment-dots text-base"></i>
+                    <span>Nút Chat</span>
+                </button>
+                
+                <button id="btn-order-drink" onclick="toggleOrderModal()" class="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black px-4 py-3 rounded-xl shadow-lg border-2 border-amber-300 flex items-center gap-2 active:scale-95 transition-all gold-glow">
+                    <i class="fa-solid fa-mug-hot text-xl"></i>
+                    <span>Gọi Đồ Uống</span>
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal: Gọi Đồ Uống -->
+    <div id="order-modal" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-slate-800 border-2 border-amber-500 rounded-2xl w-full max-w-md p-5 shadow-2xl relative">
+            <button onclick="toggleOrderModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white text-xl">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <h2 class="text-xl font-black text-amber-400 flex items-center gap-2 mb-1">
+                <i class="fa-solid fa-bell"></i> Gọi Đồ Cho Bàn
+            </h2>
+            <p class="text-xs text-slate-400 mb-4">Chọn món nước bạn muốn phục vụ hoặc gọi mang ra bàn!</p>
+
+            <div id="order-menu-grid" class="grid grid-cols-2 gap-3">
+                <!-- Dynamic Items -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Alert Notification -->
+    <div id="toast" class="fixed top-20 left-1/2 -translate-x-1/2 bg-slate-900 border-2 border-amber-400 text-amber-300 font-bold px-6 py-2.5 rounded-full shadow-2xl transition-all duration-300 opacity-0 pointer-events-none z-50 flex items-center gap-2">
+        <i class="fa-solid fa-bell"></i> <span id="toast-text">Thông báo</span>
+    </div>
+
+    <!-- Firebase SDK Modules -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, collection, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global Application Context
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'tra-da-3d-app';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "demo-key", authDomain: "demo.firebaseapp.com", projectId: "demo-project"
+        };
+
+        let app, db, auth;
+        let currentUser = null;
+        let roomId = null;
+        let isHost = false;
+
+        const DRINKS = {
+            tra_da: { id: 'tra_da', name: 'Trà Đá Chát', price: '5.000đ', icon: '🍺', color: 0xeab308 },
+            huong_duong: { id: 'huong_duong', name: 'Hạt Hướng Dương', price: '10.000đ', icon: '🌻', color: 0xd97706 },
+            tra_chanh: { id: 'tra_chanh', name: 'Trà Chanh Phố Cổ', price: '15.000đ', icon: '🍹', color: 0x84cc16 },
+            tra_tac: { id: 'tra_tac', name: 'Trà Tắc Khổng Lồ', price: '18.000đ', icon: '🥤', color: 0xf97316 }
+        };
+
+        // THREE.JS Engine Variables
+        let scene, camera, renderer, controls, raycaster, mouse;
+        let tableGroupMap = new Map();
+        let player3DMeshes = new Map(); // Store 3D character meshes for connected players
+        let tableDrinkMeshes = new Map(); // Store 3D drink meshes on tables
+        let animatedFoliageList = []; // Danh sách các cụm lá cây để tạo hiệu ứng đu đưa theo gió
+        let sidewalkMeshRef = null; // Reference to floor mesh for click-to-move navigation
+
+        // Target movement position for local player
+        let myTargetPos = null;
+        let joystickInput = { x: 0, y: 0 };
+        let isJoystickActive = false;
+
+        // Local state
+        let myPlayerId = 'p_' + Math.random().toString(36).substring(2, 9);
+        let roomStateData = {
+            shopName: 'Trà Đá Phố Cổ 3D',
+            players: {},
+            tables: Array(8).fill(null).map((_, i) => ({ id: i, seats: [null, null], order: null }))
+        };
+
+        /* ==========================================================================
+           1. ROOM & FIREBASE SYNC INITIALIZATION
+           ========================================================================== */
+        async function initFirebase() {
+            try {
+                app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                currentUser = auth.currentUser;
+            } catch (err) {
+                console.warn("Firebase fallback simulation mode:", err);
+            }
+        }
+
+        // Extract or generate Room ID from URL query string
+        function getRoomIdFromURL() {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('room');
+        }
+
+        async function joinGameRoom() {
+            const playerName = document.getElementById('input-player-name').value.trim() || ('Vị Khách #' + Math.floor(Math.random() * 900 + 100));
+            const shopNameInput = document.getElementById('input-shop-name').value.trim() || 'Trà Đá Phố Cổ 3D';
+            const shirtColor = document.getElementById('input-shirt-color').value;
+            const hairColor = document.getElementById('input-hair-color').value;
+
+            let urlRoom = getRoomIdFromURL();
+            if (!urlRoom) {
+                // Host creating new room
+                roomId = 'phong_' + Math.random().toString(36).substring(2, 8);
+                isHost = true;
+                
+                // Safely update URL without origin concatenation issues inside sandboxed iframe/blob
+                try {
+                    const searchParams = new URLSearchParams(window.location.search);
+                    searchParams.set('room', roomId);
+                    const newRelativePathQuery = window.location.pathname + '?' + searchParams.toString();
+                    window.history.replaceState(null, '', newRelativePathQuery);
+                } catch (e) {
+                    console.warn("Could not update history state in sandboxed iframe:", e);
+                }
+            } else {
+                roomId = urlRoom;
+                isHost = false;
+            }
+
+            document.getElementById('join-modal').classList.add('hidden');
+            document.getElementById('role-display').innerText = isHost ? `Chủ tiệm: ${playerName}` : `Khách: ${playerName}`;
+
+            // Initialize Three.js Canvas
+            init3D();
+
+            // Connect to Firestore Room Document
+            if (db && currentUser) {
+                const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomId);
+                
+                // Listen to Room updates in Realtime
+                onSnapshot(roomRef, (snapshot) => {
+                    if (snapshot.exists()) {
+                        const data = snapshot.data();
+                        syncRoomData(data);
+                    } else if (isHost) {
+                        // Create room doc
+                        const initialData = {
+                            shopName: shopNameInput,
+                            players: {
+                                [myPlayerId]: { name: playerName, shirtColor, hairColor, satTable: null, satSeat: null, isHost: true }
+                            },
+                            tables: Array(8).fill(null).map((_, i) => ({ id: i, seats: [null, null], order: null })),
+                            chatMessages: []
+                        };
+                        setDoc(roomRef, initialData);
+                    }
+                }, (error) => console.error("Firestore error:", error));
+
+                // Register my player
+                updatePlayerInRoom(playerName, shirtColor, hairColor);
+            } else {
+                // Local fallback simulation if offline
+                roomStateData.shopName = shopNameInput;
+                roomStateData.players[myPlayerId] = { name: playerName, shirtColor, hairColor, satTable: null, satSeat: null, isHost };
+                syncRoomData(roomStateData);
+            }
+
+            showToast(`Đã tham gia tiệm trà đá thành công!`);
+            renderOrderMenu();
+        }
+
+        async function updatePlayerInRoom(name, shirtColor, hairColor) {
+            if (!db || !currentUser || !roomId) return;
+            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomId);
+            const snap = await getDoc(roomRef);
+            if (snap.exists()) {
+                const data = snap.data();
+                data.players = data.players || {};
+                data.players[myPlayerId] = {
+                    name, shirtColor, hairColor,
+                    posX: data.players[myPlayerId]?.posX ?? -8,
+                    posZ: data.players[myPlayerId]?.posZ ?? -4,
+                    satTable: data.players[myPlayerId]?.satTable ?? null,
+                    satSeat: data.players[myPlayerId]?.satSeat ?? null,
+                    isHost
+                };
+                await updateDoc(roomRef, { players: data.players });
+            }
+        }
+
+        function copyInviteLink() {
+            let link = window.location.href;
+            if (roomId && !link.includes(`room=${roomId}`)) {
+                const sep = link.includes('?') ? '&' : '?';
+                link = `${link}${sep}room=${roomId}&autojoin=1`;
+            } else if (!link.includes('autojoin=1')) {
+                const sep = link.includes('?') ? '&' : '?';
+                link = `${link}${sep}autojoin=1`;
+            }
+            
+            const input = document.createElement('input');
+            input.value = link;
+            document.body.appendChild(input);
+            input.select();
+            document.execCommand('copy');
+            document.body.removeChild(input);
+            showToast("Đã sao chép Link TikTok! Viewer bấm vào là tự động VÀO QUÁN NGHỆCH NGAY!");
+        }
+
+        /* ==========================================================================
+           2. REALTIME STATE SYNC & 3D RENDERING
+           ========================================================================== */
+        function syncRoomData(data) {
+            roomStateData = data;
+            document.getElementById('shop-name-display').innerText = data.shopName || 'Trà Đá Phố Cổ 3D';
+
+            const playersArr = Object.entries(data.players || {});
+            document.getElementById('online-count-display').innerText = playersArr.length;
+
+            // 1. Sync 3D Players on Chairs
+            syncPlayers3D(data.players || {});
+
+            // 2. Sync Drinks on 3D Tables
+            syncTables3D(data.tables || []);
+
+            // 3. Sync Chat Messages
+            syncChatLog(data.chatMessages || []);
+        }
+
+        function syncPlayers3D(players) {
+            // Remove players no longer present
+            player3DMeshes.forEach((mesh, pId) => {
+                if (!players[pId]) {
+                    scene.remove(mesh);
+                    player3DMeshes.delete(pId);
+                }
+            });
+
+            // Update/Create players
+            Object.entries(players).forEach(([pId, pData]) => {
+                let mesh = player3DMeshes.get(pId);
+                if (!mesh) {
+                    mesh = createDetailedHuman3D(pData);
+                    player3DMeshes.set(pId, mesh);
+                    scene.add(mesh);
+                }
+
+                // Smoothly update positions/sitting state
+                if (pData.satTable !== null && pData.satSeat !== null) {
+                    const tableObj = tableGroupMap.get(pData.satTable);
+                    if (tableObj) {
+                        const seatX = pData.satSeat === 0 ? -1.2 : 1.2;
+                        mesh.position.set(tableObj.position.x + seatX, 0.8, tableObj.position.z);
+                        mesh.rotation.y = pData.satSeat === 0 ? Math.PI / 2 : -Math.PI / 2;
+                        mesh.visible = true;
+                    }
+                } else if (pData.posX !== undefined && pData.posZ !== undefined) {
+                    // Moving on wooden floor
+                    mesh.targetPos = new THREE.Vector3(pData.posX, 0.8, pData.posZ);
+                    mesh.visible = true;
+                }
+            });
+        }
+
+        function toggleChatBox() {
+            const chatContainer = document.getElementById('chat-container');
+            chatContainer.classList.toggle('hidden');
+        }
+
+        function sendQuickChat(text) {
+            document.getElementById('chat-input').value = text;
+            sendChatMessage();
+        }
+
+        /* ==========================================================================
+           3. THREE.JS 3D ENVIRONMENT BUILDER
+           ========================================================================== */
+        function syncTables3D(tables) {
+            tables.forEach(tableData => {
+                const tableObj = tableGroupMap.get(tableData.id);
+                if (!tableObj) return;
+
+                let drinkMesh = tableDrinkMeshes.get(tableData.id);
+
+                if (tableData.order) {
+                    if (!drinkMesh) {
+                        drinkMesh = createDrinkMesh3D(tableData.order);
+                        tableObj.group.add(drinkMesh);
+                        tableDrinkMeshes.set(tableData.id, drinkMesh);
+                    }
+                } else {
+                    if (drinkMesh) {
+                        tableObj.group.remove(drinkMesh);
+                        tableDrinkMeshes.delete(tableData.id);
+                    }
+                }
+            });
+        }
+
+        function syncChatLog(messages) {
+            const log = document.getElementById('chat-log');
+            log.innerHTML = '';
+            messages.slice(-15).forEach(msg => {
+                const p = document.createElement('p');
+                p.className = 'text-slate-200 border-b border-slate-800/80 pb-1';
+                p.innerHTML = `<span class="font-black text-amber-400">${msg.sender}:</span> ${msg.text}`;
+                log.appendChild(p);
+
+                // Show floating chat bubble over 3D character
+                if (msg.senderId && player3DMeshes.has(msg.senderId)) {
+                    showFloatingSpeechBubble3D(player3DMeshes.get(msg.senderId), msg.text);
+                }
+            });
+            log.scrollTop = log.scrollHeight;
+        }
+
+        async function sendChatMessage() {
+            const input = document.getElementById('chat-input');
+            const text = input.value.trim();
+            if (!text || !roomId) return;
+
+            input.value = '';
+            const senderName = roomStateData.players[myPlayerId]?.name || 'Khách';
+
+            if (db && currentUser) {
+                const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomId);
+                const snap = await getDoc(roomRef);
+                if (snap.exists()) {
+                    const data = snap.data();
+                    const msgs = data.chatMessages || [];
+                    msgs.push({ senderId: myPlayerId, sender: senderName, text, timestamp: Date.now() });
+                    await updateDoc(roomRef, { chatMessages: msgs });
+                }
+            } else {
+                // Local simulation
+                roomStateData.chatMessages = roomStateData.chatMessages || [];
+                roomStateData.chatMessages.push({ senderId: myPlayerId, sender: senderName, text, timestamp: Date.now() });
+                syncChatLog(roomStateData.chatMessages);
+            }
+        }
+
+        /* ==========================================================================
+           3. THREE.JS 3D ENVIRONMENT BUILDER
+           ========================================================================== */
+        function init3D() {
+            const container = document.getElementById('canvas-container');
+
+            // Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0f1d);
+            scene.fog = new THREE.FogExp2(0x0a0f1d, 0.025);
+
+            // Camera
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+            camera.position.set(0, 12, 18);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            // Controls
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.maxPolarAngle = Math.PI / 2.05;
+            controls.minDistance = 5;
+            controls.maxDistance = 35;
+            controls.target.set(0, 1, 0);
+
+            // Raycaster for mouse clicks
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xfffbeb, 0.6);
+            scene.add(ambientLight);
+
+            const sunLight = new THREE.DirectionalLight(0xfff5d6, 1.2);
+            sunLight.position.set(10, 20, 10);
+            sunLight.castShadow = true;
+            sunLight.shadow.mapSize.width = 1024;
+            sunLight.shadow.mapSize.height = 1024;
+            scene.add(sunLight);
+
+            // Build Environment: Floor, Trees, Tables, Shop
+            buildWoodDeckingFloor();
+            buildOrganicTrees();
+            buildTeaShop3D();
+            buildTables3D();
+
+            // Click listener for selecting tables or moving
+            renderer.domElement.addEventListener('pointerdown', onCanvasClick);
+            window.addEventListener('resize', onWindowResize);
+
+            // Bật Virtual Joystick trên cảm ứng di động
+            initVirtualJoystick();
+
+            // Start Animation Loop
+            animate();
+        }
+
+        /* ==========================================================================
+           VIRTUAL JOYSTICK CONTROLLER (CHO ĐIỆN THOẠI & CẢM ỨNG)
+           ========================================================================== */
+        function initVirtualJoystick() {
+            const container = document.getElementById('joystick-container');
+            const knob = document.getElementById('joystick-knob');
+            if (!container || !knob) return;
+
+            let rect = container.getBoundingClientRect();
+            const radius = rect.width / 2;
+
+            function handleTouchMove(clientX, clientY) {
+                rect = container.getBoundingClientRect();
+                const centerX = rect.left + radius;
+                const centerY = rect.top + radius;
+
+                let deltaX = clientX - centerX;
+                let deltaY = clientY - centerY;
+                const distance = Math.hypot(deltaX, deltaY);
+
+                if (distance > radius) {
+                    deltaX = (deltaX / distance) * radius;
+                    deltaY = (deltaY / distance) * radius;
+                }
+
+                knob.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+
+                // Chuẩn hóa Joystick về dải [-1, 1]
+                joystickInput.x = deltaX / radius;
+                joystickInput.y = deltaY / radius;
+                isJoystickActive = true;
+            }
+
+            function handleTouchEnd() {
+                knob.style.transform = `translate(0px, 0px)`;
+                joystickInput.x = 0;
+                joystickInput.y = 0;
+                isJoystickActive = false;
+            }
+
+            container.addEventListener('pointerdown', (e) => {
+                container.setPointerCapture(e.pointerId);
+                handleTouchMove(e.clientX, e.clientY);
+            });
+
+            container.addEventListener('pointermove', (e) => {
+                if (isJoystickActive) handleTouchMove(e.clientX, e.clientY);
+            });
+
+            container.addEventListener('pointerup', handleTouchEnd);
+            container.addEventListener('pointercancel', handleTouchEnd);
+        }
+
+        function buildWoodDeckingFloor() {
+            // Wood Decking Floor Surface
+            const floorGeo = new THREE.BoxGeometry(22, 0.3, 14);
+            const floorMat = new THREE.MeshStandardMaterial({ color: 0x8d5b4c, roughness: 0.7 });
+            const floor = new THREE.Mesh(floorGeo, floorMat);
+            floor.position.set(0, -0.15, 0);
+            floor.receiveShadow = true;
+            scene.add(floor);
+            sidewalkMeshRef = floor;
+
+            // Wood Planks Pattern Lines
+            for (let z = -6.5; z <= 6.5; z += 0.8) {
+                const lineGeo = new THREE.BoxGeometry(21.8, 0.02, 0.04);
+                const lineMat = new THREE.MeshBasicMaterial({ color: 0x543329 });
+                const line = new THREE.Mesh(lineGeo, lineMat);
+                line.position.set(0, 0.01, z);
+                scene.add(line);
+            }
+        }
+
+        function buildOrganicTrees() {
+            // 2 Organic Trees at corners
+            const treePositions = [
+                { x: -9, z: -5.5 },
+                { x: 9, z: -5.5 }
+            ];
+
+            treePositions.forEach(pos => {
+                const treeGroup = new THREE.Group();
+                treeGroup.position.set(pos.x, 0, pos.z);
+
+                // Curved Trunk
+                const trunkMat = new THREE.MeshStandardMaterial({ color: 0x4a2e1b, roughness: 0.9 });
+                for (let i = 0; i < 4; i++) {
+                    const trunkSeg = new THREE.Mesh(new THREE.CylinderGeometry(0.35 - i * 0.05, 0.45 - i * 0.05, 1.2, 8), trunkMat);
+                    trunkSeg.position.set(Math.sin(i * 0.3) * 0.2, 0.6 + i * 1.0, Math.cos(i * 0.2) * 0.1);
+                    trunkSeg.rotation.z = (Math.random() - 0.5) * 0.15;
+                    trunkSeg.castShadow = true;
+                    treeGroup.add(trunkSeg);
+                }
+
+                // Multi-layered Organic Foliage
+                const foliageColors = [0x15803d, 0x166534, 0x22c55e, 0x14532d, 0x4ade80];
+                for (let j = 0; j < 8; j++) {
+                    const radius = 0.8 + Math.random() * 0.6;
+                    const folGeo = new THREE.DodecahedronGeometry(radius, 1);
+                    const folMat = new THREE.MeshStandardMaterial({
+                        color: foliageColors[j % foliageColors.length],
+                        roughness: 0.8,
+                        flatShading: true
+                    });
+                    const folMesh = new THREE.Mesh(folGeo, folMat);
+                    const lx = (Math.random() - 0.5) * 1.8;
+                    const ly = 3.5 + Math.random() * 1.5;
+                    const lz = (Math.random() - 0.5) * 1.8;
+                    folMesh.position.set(lx, ly, lz);
+                    folMesh.castShadow = true;
+                    treeGroup.add(folMesh);
+
+                    // Add to wind animation list
+                    animatedFoliageList.push({
+                        mesh: folMesh,
+                        baseX: lx,
+                        baseZ: lz,
+                        speed: 1 + Math.random(),
+                        phase: Math.random() * Math.PI * 2
+                    });
+                }
+
+                scene.add(treeGroup);
+            });
+        }
+
+        function buildTeaShop3D() {
+            const shopGroup = new THREE.Group();
+            shopGroup.position.set(0, 0, -6);
+
+            // Counter Booth
+            const counterGeo = new THREE.BoxGeometry(4.5, 1.2, 1.6);
+            const counterMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.6 });
+            const counter = new THREE.Mesh(counterGeo, counterMat);
+            counter.position.y = 0.6;
+            counter.castShadow = true;
+            shopGroup.add(counter);
+
+            // Signboard Header
+            const signBoardGeo = new THREE.BoxGeometry(4.8, 0.8, 0.15);
+            const signBoardMat = new THREE.MeshStandardMaterial({ color: 0x1e293b });
+            const signBoard = new THREE.Mesh(signBoardGeo, signBoardMat);
+            signBoard.position.set(0, 2.6, 0.8);
+            shopGroup.add(signBoard);
+
+            // Signboard Canvas Text
+            const canvas = document.createElement('canvas');
+            canvas.width = 512; canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#0284c7'; ctx.fillRect(0, 0, 512, 128);
+            ctx.fillStyle = '#f59e0b'; ctx.font = 'bold 48px sans-serif'; ctx.textAlign = 'center';
+            ctx.fillText('TRÀ ĐÁ VỈA HÈ', 256, 80);
+
+            const signTex = new THREE.CanvasTexture(canvas);
+            const textMat = new THREE.MeshBasicMaterial({ map: signTex });
+            const textMesh = new THREE.Mesh(new THREE.PlaneGeometry(4.6, 0.7), textMat);
+            textMesh.position.set(0, 2.6, 0.89);
+            shopGroup.add(textMesh);
+
+            scene.add(shopGroup);
+        }
+
+        function buildTables3D() {
+            // 8 Tables in 2 Rows
+            const positions = [
+                // Front Row
+                { id: 0, x: -6, z: 1 }, { id: 1, x: -2, z: 1 }, { id: 2, x: 2, z: 1 }, { id: 3, x: 6, z: 1 },
+                // Back Row
+                { id: 4, x: -6, z: 4 }, { id: 5, x: -2, z: 4 }, { id: 6, x: 2, z: 4 }, { id: 7, x: 6, z: 4 }
+            ];
+
+            positions.forEach(p => {
+                const group = new THREE.Group();
+                group.position.set(p.x, 0, p.z);
+
+                // Plastic Table
+                const tableTopGeo = new THREE.BoxGeometry(1.4, 0.1, 1.2);
+                const plasticMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.4 });
+                const tableTop = new THREE.Mesh(tableTopGeo, plasticMat);
+                tableTop.position.y = 0.75;
+                tableTop.castShadow = true;
+                group.add(tableTop);
+
+                // Table Legs
+                for (let lx of [-0.6, 0.6]) {
+                    for (let lz of [-0.5, 0.5]) {
+                        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.75), plasticMat);
+                        leg.position.set(lx, 0.375, lz);
+                        group.add(leg);
+                    }
+                }
+
+                // 2 Plastic Chairs per Table
+                const chairMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.4 });
+                for (let seatIdx of [0, 1]) {
+                    const chairGroup = new THREE.Group();
+                    const seatX = seatIdx === 0 ? -1.2 : 1.2;
+                    chairGroup.position.set(seatX, 0, 0);
+
+                    const seatGeo = new THREE.BoxGeometry(0.6, 0.08, 0.6);
+                    const seat = new THREE.Mesh(seatGeo, chairMat);
+                    seat.position.y = 0.4;
+                    chairGroup.add(seat);
+
+                    group.add(chairGroup);
+                }
+
+                // Small potted plant on table
+                const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.08, 0.2), new THREE.MeshStandardMaterial({ color: 0x94a3b8 }));
+                pot.position.set(0.4, 0.9, 0.3);
+                group.add(pot);
+
+                const plant = new THREE.Mesh(new THREE.DodecahedronGeometry(0.15), new THREE.MeshStandardMaterial({ color: 0x22c55e }));
+                plant.position.set(0.4, 1.05, 0.3);
+                group.add(plant);
+
+                scene.add(group);
+                tableGroupMap.set(p.id, { group, position: new THREE.Vector3(p.x, 0, p.z) });
+            });
+        }
+
+        function createDetailedHuman3D(data) {
+            const group = new THREE.Group();
+
+            const shirtMat = new THREE.MeshStandardMaterial({ color: data.shirtColor || 0x2563eb, roughness: 0.6 });
+            const hairMat = new THREE.MeshStandardMaterial({ color: data.hairColor || 0x1e293b, roughness: 0.8 });
+            const skinMat = new THREE.MeshStandardMaterial({ color: 0xfbd5b5, roughness: 0.5 });
+            const pantsMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.7 });
+            const shoeMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.8 });
+            const eyeMat = new THREE.MeshBasicMaterial({ color: 0x0f172a });
+
+            // 1. Thân áo (Torso)
+            const torso = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.65, 0.35), shirtMat);
+            torso.position.y = 0.325;
+            torso.castShadow = true;
+            group.add(torso);
+
+            // Cổ áo (Collar)
+            const collar = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.08, 0.25), shirtMat);
+            collar.position.set(0, 0.66, 0.02);
+            group.add(collar);
+
+            // 2. Đầu (Head)
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.38), skinMat);
+            head.position.y = 0.9;
+            head.castShadow = true;
+            group.add(head);
+
+            // Mắt (Eyes)
+            const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.02), eyeMat);
+            eyeL.position.set(-0.1, 0.93, 0.19);
+            group.add(eyeL);
+
+            const eyeR = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.02), eyeMat);
+            eyeR.position.set(0.1, 0.93, 0.19);
+            group.add(eyeR);
+
+            // Miệng cười (Smile)
+            const mouthMat = new THREE.MeshBasicMaterial({ color: 0x991b1b });
+            const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.04, 0.02), mouthMat);
+            mouth.position.set(0, 0.82, 0.19);
+            group.add(mouth);
+
+            // 3. Tóc (Stylized Hair)
+            const hairTop = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.15, 0.42), hairMat);
+            hairTop.position.set(0, 1.12, -0.01);
+            group.add(hairTop);
+
+            const hairBack = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.25, 0.1), hairMat);
+            hairBack.position.set(0, 1.0, -0.18);
+            group.add(hairBack);
+
+            // 4. Tay (Arms & Hands)
+            for (let side of [-1, 1]) {
+                // Cánh tay
+                const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.06, 0.45), shirtMat);
+                arm.position.set(side * 0.34, 0.35, 0.08);
+                arm.rotation.x = Math.PI / 4;
+                group.add(arm);
+
+                // Bàn tay
+                const hand = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 8), skinMat);
+                hand.position.set(side * 0.34, 0.18, 0.25);
+                group.add(hand);
+            }
+
+            // 5. Chân & Giày (Legs, Pants & Shoes)
+            for (let side of [-1, 1]) {
+                // Đùi (Ngồi gập chân)
+                const thigh = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.45), pantsMat);
+                thigh.position.set(side * 0.16, 0.08, 0.18);
+                group.add(thigh);
+
+                // Cẳng chân
+                const leg = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.35, 0.16), skinMat);
+                leg.position.set(side * 0.16, -0.15, 0.38);
+                group.add(leg);
+
+                // Giày
+                const shoe = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.1, 0.25), shoeMat);
+                shoe.position.set(side * 0.16, -0.3, 0.42);
+                group.add(shoe);
+            }
+
+            // 6. Nhãn tên 3D (3D Name Sprite Tag above head)
+            const nameSprite = createNameSprite3D(data.name || 'Khách');
+            nameSprite.position.y = 1.55;
+            group.add(nameSprite);
+
+            return group;
+        }
+
+        function createNameSprite3D(text) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 384; canvas.height = 96;
+            const ctx = canvas.getContext('2d');
+            
+            // Xóa viền và nền đen - Chỉ vẽ chữ thuần túy
+            ctx.clearRect(0, 0, 384, 96);
+
+            // Bổ sung bóng đổ chữ nhẹ để dễ nhìn trên nền gỗ 3D
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
+            ctx.shadowBlur = 6;
+            ctx.shadowOffsetX = 2;
+            ctx.shadowOffsetY = 2;
+
+            // Định dạng font chữ vàng/trắng nổi bật
+            ctx.fillStyle = '#fbbf24';
+            ctx.font = 'bold 36px "Nunito", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(text, 192, 58);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true });
+            const sprite = new THREE.Sprite(spriteMat);
+            sprite.scale.set(3, 0.75, 1);
+            return sprite;
+        }
+
+        function showFloatingSpeechBubble3D(playerMesh, text) {
+            if (!playerMesh) return;
+            
+            const canvas = document.createElement('canvas');
+            canvas.width = 320; canvas.height = 96;
+            const ctx = canvas.getContext('2d');
+
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.roundRect ? ctx.roundRect(10, 10, 300, 60, 16) : ctx.fillRect(10, 10, 300, 60);
+            ctx.fill();
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = '#0284c7';
+            ctx.stroke();
+
+            ctx.fillStyle = '#0f172a';
+            ctx.font = 'bold 20px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(text.length > 20 ? text.substring(0, 18) + '...' : text, 160, 46);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true });
+            const bubbleSprite = new THREE.Sprite(spriteMat);
+            bubbleSprite.scale.set(2.8, 0.84, 1);
+            bubbleSprite.position.y = 2.2;
+
+            playerMesh.add(bubbleSprite);
+
+            setTimeout(() => {
+                playerMesh.remove(bubbleSprite);
+            }, 4000);
+        }
+
+        function createDrinkMesh3D(orderId) {
+            const drinkGroup = new THREE.Group();
+            const drink = DRINKS[orderId] || DRINKS.tra_da;
+
+            const cupGeo = new THREE.CylinderGeometry(0.18, 0.14, 0.4, 16);
+            const cupMat = new THREE.MeshStandardMaterial({
+                color: drink.color,
+                transparent: true,
+                opacity: 0.85,
+                roughness: 0.2
+            });
+            const cup = new THREE.Mesh(cupGeo, cupMat);
+            cup.position.y = 0.95;
+            drinkGroup.add(cup);
+
+            const strawGeo = new THREE.CylinderGeometry(0.015, 0.015, 0.5);
+            const strawMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
+            const straw = new THREE.Mesh(strawGeo, strawMat);
+            straw.position.set(0.05, 1.05, 0);
+            straw.rotation.z = -0.2;
+            drinkGroup.add(straw);
+
+            return drinkGroup;
+        }
+
+        /* ==========================================================================
+           4. CLICK / INTERACTION & EVENT HANDLERS
+           ========================================================================== */
+        function onCanvasClick(event) {
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+
+            // 1. Check Table/Chair Clicks
+            for (let [tableId, tableObj] of tableGroupMap.entries()) {
+                const intersects = raycaster.intersectObject(tableObj.group, true);
+                if (intersects.length > 0) {
+                    takeSeatAtTable(tableId);
+                    return;
+                }
+            }
+
+            // 2. Check Click-to-Move Floor
+            if (sidewalkMeshRef) {
+                const intersects = raycaster.intersectObject(sidewalkMeshRef);
+                if (intersects.length > 0) {
+                    const hitPoint = intersects[0].point;
+                    movePlayerToPos(hitPoint.x, hitPoint.z);
+                }
+            }
+        }
+
+        async function takeSeatAtTable(tableId) {
+            if (!roomId) return;
+            
+            let seatIndex = 0;
+            const currentTable = roomStateData.tables?.[tableId];
+            if (currentTable && currentTable.seats[0] !== null) {
+                seatIndex = 1;
+            }
+
+            if (db && currentUser) {
+                const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomId);
+                const snap = await getDoc(roomRef);
+                if (snap.exists()) {
+                    const data = snap.data();
+                    data.players[myPlayerId].satTable = tableId;
+                    data.players[myPlayerId].satSeat = seatIndex;
+                    await updateDoc(roomRef, { players: data.players });
+                }
+            } else {
+                // Local state
+                roomStateData.players[myPlayerId].satTable = tableId;
+                roomStateData.players[myPlayerId].satSeat = seatIndex;
+                syncRoomData(roomStateData);
+            }
+
+            showToast(`Bạn đã ngồi vào Bàn #${tableId + 1}`);
+        }
+
+        async function movePlayerToPos(x, z) {
+            if (!roomId) return;
+
+            // Stand up from seat if sitting
+            if (db && currentUser) {
+                const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomId);
+                const snap = await getDoc(roomRef);
+                if (snap.exists()) {
+                    const data = snap.data();
+                    data.players[myPlayerId].satTable = null;
+                    data.players[myPlayerId].satSeat = null;
+                    data.players[myPlayerId].posX = x;
+                    data.players[myPlayerId].posZ = z;
+                    await updateDoc(roomRef, { players: data.players });
+                }
+            } else {
+                roomStateData.players[myPlayerId].satTable = null;
+                roomStateData.players[myPlayerId].satSeat = null;
+                roomStateData.players[myPlayerId].posX = x;
+                roomStateData.players[myPlayerId].posZ = z;
+                syncRoomData(roomStateData);
+            }
+        }
+
+        function toggleOrderModal() {
+            document.getElementById('order-modal').classList.toggle('hidden');
+        }
+
+        function renderOrderMenu() {
+            const menuGrid = document.getElementById('order-menu-grid');
+            if (!menuGrid) return;
+            menuGrid.innerHTML = '';
+
+            Object.values(DRINKS).forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'bg-slate-700/80 hover:bg-slate-700 border border-slate-600 rounded-xl p-3 flex flex-col justify-between items-center text-center cursor-pointer active:scale-95 transition-all';
+                card.onclick = () => orderDrink(item.id);
+                card.innerHTML = `
+                    <div class="text-3xl mb-1">${item.icon}</div>
+                    <div class="font-bold text-sm text-slate-100">${item.name}</div>
+                    <div class="text-xs text-amber-400 font-extrabold mt-1">${item.price}</div>
+                    <button class="w-full mt-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs py-1 rounded-lg">Gọi Món</button>
+                `;
+                menuGrid.appendChild(card);
+            });
+        }
+
+        async function orderDrink(drinkId) {
+            const myTable = roomStateData.players[myPlayerId]?.satTable;
+            if (myTable === null || myTable === undefined) {
+                showToast("Bạn cần chọn Bàn 3D để ngồi xuống trước khi gọi đồ!");
+                toggleOrderModal();
+                return;
+            }
+
+            if (db && currentUser) {
+                const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomId);
+                const snap = await getDoc(roomRef);
+                if (snap.exists()) {
+                    const data = snap.data();
+                    data.tables[myTable].order = drinkId;
+                    await updateDoc(roomRef, { tables: data.tables });
+                }
+            } else {
+                roomStateData.tables[myTable].order = drinkId;
+                syncRoomData(roomStateData);
+            }
+
+            toggleOrderModal();
+            showToast(`Đã mang ${DRINKS[drinkId].name} ra Bàn #${myTable + 1}!`);
+        }
+
+        /* ==========================================================================
+           5. TIKTOK LIVE INTEGRATION & SIMULATOR
+           ========================================================================== */
+        function toggleTikTokPanel() {
+            document.getElementById('tiktok-modal').classList.toggle('hidden');
+        }
+
+        function connectTikTokLive() {
+            const username = document.getElementById('tiktok-username-input').value.trim();
+            if (!username) {
+                showToast("Vui lòng nhập @username TikTok của bạn!");
+                return;
+            }
+            showToast(`Đã kết nối luồng TikTok Live: ${username}`);
+            toggleTikTokPanel();
+        }
+
+        function simulateTikTokGift(viewerName, giftName, coinValue) {
+            let orderedDrink = 'tra_da';
+            if (coinValue >= 500) orderedDrink = 'tra_tac';
+            else if (coinValue >= 50) orderedDrink = 'tra_chanh';
+            else if (coinValue >= 10) orderedDrink = 'huong_duong';
+
+            // Find an empty table or random table
+            const targetTable = Math.floor(Math.random() * 8);
+            
+            // Auto order drink on table
+            if (roomStateData.tables && roomStateData.tables[targetTable]) {
+                roomStateData.tables[targetTable].order = orderedDrink;
+                syncTables3D(roomStateData.tables);
+            }
+
+            showToast(`🎁 ${viewerName} vừa tặng ${giftName} (${coinValue} Xu) -> Tự động order ${DRINKS[orderedDrink].name}!`);
+        }
+
+        /* ==========================================================================
+           6. UTILITIES & ANIMATION LOOP
+           ========================================================================== */
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-text').innerText = msg;
+            toast.classList.remove('opacity-0', 'pointer-events-none');
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'pointer-events-none');
+            }, 3000);
+        }
+
+        function onWindowResize() {
+            const container = document.getElementById('canvas-container');
+            if (!container || !renderer || !camera) return;
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        function animate(time) {
+            requestAnimationFrame(animate);
+
+            // Controls update
+            if (controls) controls.update();
+
+            // Wind effect on organic trees foliage
+            const elapsed = (time || 0) * 0.0015;
+            animatedFoliageList.forEach(item => {
+                item.mesh.position.x = item.baseX + Math.sin(elapsed * item.speed + item.phase) * 0.12;
+                item.mesh.position.z = item.baseZ + Math.cos(elapsed * item.speed + item.phase) * 0.12;
+            });
+
+            // Smooth 3D Player Walking Movement
+            player3DMeshes.forEach((mesh, pId) => {
+                // Xử lý di chuyển bằng Joystick nếu là nhân vật của chính người chơi
+                if (pId === myPlayerId && isJoystickActive) {
+                    // Giảm tốc độ di chuyển từ 0.12 xuống 0.045 để nhân vật bước đi thong thả hơn
+                    const moveSpeed = 0.045;
+                    mesh.position.x += joystickInput.x * moveSpeed;
+                    mesh.position.z += joystickInput.y * moveSpeed;
+
+                    // Giới hạn trong sàn gỗ
+                    mesh.position.x = Math.max(-10, Math.min(10, mesh.position.x));
+                    mesh.position.z = Math.max(-6, Math.min(6, mesh.position.z));
+                    
+                    // Xoay nhân vật theo hướng di chuyển
+                    mesh.rotation.y = Math.atan2(joystickInput.x, joystickInput.y);
+
+                    // Cập nhật tọa độ thực lên Firebase
+                    if (roomStateData.players[myPlayerId]) {
+                        roomStateData.players[myPlayerId].posX = mesh.position.x;
+                        roomStateData.players[myPlayerId].posZ = mesh.position.z;
+                    }
+                } else if (mesh.targetPos) {
+                    // Giảm hệ số nội suy lerp từ 0.08 xuống 0.035 giúp di chuyển khi click chuột mượt và chậm rãi hơn
+                    mesh.position.lerp(mesh.targetPos, 0.035);
+                    if (mesh.position.distanceTo(mesh.targetPos) < 0.1) {
+                        mesh.targetPos = null;
+                    }
+                }
+            });
+
+            if (renderer && scene && camera) {
+                renderer.render(scene, camera);
+            }
+        }
+
+        // Export functions to global scope for HTML onclick attributes
+        window.joinGameRoom = joinGameRoom;
+        window.copyInviteLink = copyInviteLink;
+        window.toggleChatBox = toggleChatBox;
+        window.sendQuickChat = sendQuickChat;
+        window.sendChatMessage = sendChatMessage;
+        window.toggleOrderModal = toggleOrderModal;
+        window.orderDrink = orderDrink;
+        window.renderOrderMenu = renderOrderMenu;
+        window.toggleTikTokPanel = toggleTikTokPanel;
+        window.connectTikTokLive = connectTikTokLive;
+        window.simulateTikTokGift = simulateTikTokGift;
+
+        // Auto-join from URL parameter if available
+        window.onload = function() {
+            initFirebase();
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('autojoin') === '1') {
+                const randomName = 'Khách TikTok #' + Math.floor(Math.random() * 900 + 100);
+                document.getElementById('input-player-name').value = randomName;
+                setTimeout(() => {
+                    joinGameRoom();
+                }, 300);
+            }
+        };
+    </script>
+</body>
+</html>

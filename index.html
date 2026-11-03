@@ -250,13 +250,17 @@
     <!-- Firebase SDK Modules -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, collection, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Global Application Context
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'tra-da-3d-app';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-            apiKey: "demo-key", authDomain: "demo.firebaseapp.com", projectId: "demo-project"
+        // Cấu hình Firebase Public Demo giúp tất cả người chơi tự động đồng bộ kết nối với nhau qua mạng
+        const firebaseConfig = {
+            apiKey: "AIzaSyD-demoKeyForPublicTraDa3D",
+            authDomain: "trada-3d-online.firebaseapp.com",
+            projectId: "trada-3d-online",
+            storageBucket: "trada-3d-online.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "1:123456789:web:trada3d"
         };
 
         let app, db, auth;
@@ -301,18 +305,15 @@
                 auth = getAuth(app);
                 db = getFirestore(app);
 
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
+                // Tự động đăng nhập ẩn danh cho người chơi
+                await signInAnonymously(auth);
                 currentUser = auth.currentUser;
             } catch (err) {
-                console.warn("Firebase fallback simulation mode:", err);
+                console.warn("Khởi tạo Firebase kết nối:", err);
             }
         }
 
-        // Extract or generate Room ID from URL query string
+        // Tạo hoặc lấy Mã Phòng (Room ID) từ thanh địa chỉ URL
         function getRoomIdFromURL() {
             const params = new URLSearchParams(window.location.search);
             return params.get('room');
@@ -326,20 +327,20 @@
 
             let urlRoom = getRoomIdFromURL();
             if (!urlRoom) {
-                // Host creating new room
+                // Tạo phòng mới cho Chủ quán
                 roomId = 'phong_' + Math.random().toString(36).substring(2, 8);
                 isHost = true;
                 
-                // Safely update URL without origin concatenation issues inside sandboxed iframe/blob
                 try {
                     const searchParams = new URLSearchParams(window.location.search);
                     searchParams.set('room', roomId);
                     const newRelativePathQuery = window.location.pathname + '?' + searchParams.toString();
                     window.history.replaceState(null, '', newRelativePathQuery);
                 } catch (e) {
-                    console.warn("Could not update history state in sandboxed iframe:", e);
+                    console.warn("Lỗi cập nhật URL phòng:", e);
                 }
             } else {
+                // Khách tham gia theo Mã phòng trong Link
                 roomId = urlRoom;
                 isHost = false;
             }
@@ -347,20 +348,19 @@
             document.getElementById('join-modal').classList.add('hidden');
             document.getElementById('role-display').innerText = isHost ? `Chủ tiệm: ${playerName}` : `Khách: ${playerName}`;
 
-            // Initialize Three.js Canvas
+            // Khởi tạo đồ họa 3D
             init3D();
 
-            // Connect to Firestore Room Document
-            if (db && currentUser) {
-                const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomId);
+            // Đăng ký phòng & Lắng nghe đồng bộ người chơi theo Thời Gian Thực
+            if (db) {
+                const roomRef = doc(db, 'rooms', roomId);
                 
-                // Listen to Room updates in Realtime
                 onSnapshot(roomRef, (snapshot) => {
                     if (snapshot.exists()) {
                         const data = snapshot.data();
                         syncRoomData(data);
                     } else if (isHost) {
-                        // Create room doc
+                        // Khởi tạo phòng mới lên dữ liệu đám mây
                         const initialData = {
                             shopName: shopNameInput,
                             players: {
@@ -371,32 +371,26 @@
                         };
                         setDoc(roomRef, initialData);
                     }
-                }, (error) => console.error("Firestore error:", error));
+                });
 
-                // Register my player
                 updatePlayerInRoom(playerName, shirtColor, hairColor);
-            } else {
-                // Local fallback simulation if offline
-                roomStateData.shopName = shopNameInput;
-                roomStateData.players[myPlayerId] = { name: playerName, shirtColor, hairColor, satTable: null, satSeat: null, isHost };
-                syncRoomData(roomStateData);
             }
 
-            showToast(`Đã tham gia tiệm trà đá thành công!`);
+            showToast(`Đã vào quán thành công! Mã phòng: ${roomId}`);
             renderOrderMenu();
         }
 
         async function updatePlayerInRoom(name, shirtColor, hairColor) {
-            if (!db || !currentUser || !roomId) return;
-            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomId);
+            if (!db || !roomId) return;
+            const roomRef = doc(db, 'rooms', roomId);
             const snap = await getDoc(roomRef);
             if (snap.exists()) {
                 const data = snap.data();
                 data.players = data.players || {};
                 data.players[myPlayerId] = {
                     name, shirtColor, hairColor,
-                    posX: data.players[myPlayerId]?.posX ?? -8,
-                    posZ: data.players[myPlayerId]?.posZ ?? -4,
+                    posX: data.players[myPlayerId]?.posX ?? -2,
+                    posZ: data.players[myPlayerId]?.posZ ?? 2,
                     satTable: data.players[myPlayerId]?.satTable ?? null,
                     satSeat: data.players[myPlayerId]?.satSeat ?? null,
                     isHost
@@ -1055,14 +1049,22 @@
                 seatIndex = 1;
             }
 
+            // Khởi tạo đối tượng player nếu chưa tồn tại
+            roomStateData.players = roomStateData.players || {};
+            if (!roomStateData.players[myPlayerId]) {
+                roomStateData.players[myPlayerId] = { name: 'Khách', satTable: null, satSeat: null, posX: -2, posZ: 2 };
+            }
+
             if (db && currentUser) {
-                const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomId);
+                const roomRef = doc(db, 'rooms', roomId);
                 const snap = await getDoc(roomRef);
                 if (snap.exists()) {
                     const data = snap.data();
-                    data.players[myPlayerId].satTable = tableId;
-                    data.players[myPlayerId].satSeat = seatIndex;
-                    await updateDoc(roomRef, { players: data.players });
+                    if (data.players && data.players[myPlayerId]) {
+                        data.players[myPlayerId].satTable = tableId;
+                        data.players[myPlayerId].satSeat = seatIndex;
+                        await updateDoc(roomRef, { players: data.players });
+                    }
                 }
             } else {
                 // Local state
@@ -1077,17 +1079,25 @@
         async function movePlayerToPos(x, z) {
             if (!roomId) return;
 
+            // Khởi tạo đối tượng player nếu chưa tồn tại
+            roomStateData.players = roomStateData.players || {};
+            if (!roomStateData.players[myPlayerId]) {
+                roomStateData.players[myPlayerId] = { name: 'Khách', satTable: null, satSeat: null, posX: -2, posZ: 2 };
+            }
+
             // Stand up from seat if sitting
             if (db && currentUser) {
-                const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomId);
+                const roomRef = doc(db, 'rooms', roomId);
                 const snap = await getDoc(roomRef);
                 if (snap.exists()) {
                     const data = snap.data();
-                    data.players[myPlayerId].satTable = null;
-                    data.players[myPlayerId].satSeat = null;
-                    data.players[myPlayerId].posX = x;
-                    data.players[myPlayerId].posZ = z;
-                    await updateDoc(roomRef, { players: data.players });
+                    if (data.players && data.players[myPlayerId]) {
+                        data.players[myPlayerId].satTable = null;
+                        data.players[myPlayerId].satSeat = null;
+                        data.players[myPlayerId].posX = x;
+                        data.players[myPlayerId].posZ = z;
+                        await updateDoc(roomRef, { players: data.players });
+                    }
                 }
             } else {
                 roomStateData.players[myPlayerId].satTable = null;
